@@ -42,8 +42,8 @@ FORWARDER	:=	$(ROMFS)/exefs.nsp
 # Application version
 #---------------------------------------------------------------------------------
 VER_MAJOR	:= 1
-VER_MINOR	:= 5
-VER_MICRO	:= 9
+VER_MINOR	:= 6
+VER_MICRO	:= 0
 
 #---------------------------------------------------------------------------------
 # Options for .nacp information
