@@ -7,6 +7,8 @@
 #include <future>
 #include <functional>
 #include <atomic>
+#include <set>
+#include <limits>
 
 namespace NX {
     // Progress callback function type
@@ -104,9 +106,21 @@ namespace NX {
             // Progress callback function
             ProgressCallback progressCallback;
 
+            // Whether sessions launched without any account (homebrew forwarders,
+            // emulators, ports...) are treated as belonging to every user
+            bool includeUnassigned_;
+
+            // IDs of installed applications. Only these are ever accepted as "unassigned"
+            // so that system applets/hbloader/etc. are not mistaken for games
+            std::set<TitleID> installedIDs;
+
+            // IDs of installed applications that have at least one session without an account
+            std::set<TitleID> unassignedTitles;
+
             // Return vector of PD_Sessions for given title/user IDs + time range
             // Give a titleID of zero to include all titles
-            std::vector<PD_Session> getPDSessions(TitleID, AccountUid, u64, u64);
+            // The last parameter allows sessions with no account event at all to be accepted
+            std::vector<PD_Session> getPDSessions(TitleID, AccountUid, u64, u64, bool);
 
             // Counts playtime and launches for the given sessions
             // TitleID in returned struct is zero
@@ -135,6 +149,17 @@ namespace NX {
 
             // Merges the data within the two passed vectors by only keeping unique PlayEvents
             void initPlayEvents();
+
+            // Enable/disable treating sessions without any account as belonging to every user
+            void setIncludeUnassigned(bool);
+            bool includeUnassigned() const;
+
+            // Sets the IDs of installed applications (call before getUnassignedTitleIDs())
+            void setInstalledTitleIDs(const std::vector<TitleID> &);
+
+            // Scans the events and returns the IDs of installed applications that have sessions
+            // without any account. Also remembers them for use in getStatisticsForUser()
+            std::vector<TitleID> getUnassignedTitleIDs();
 
             // Returns title objects that are not present in the given vector
             std::vector<Title *> getMissingTitles(std::vector<Title *>);

@@ -8,7 +8,7 @@
 // Flag indicating an update is available
 #define AVAILABLE_FILE "/config/NX-Activity-Log/update.flag"
 // URL to query release data
-#define GITHUB_API_URL "https://api.github.com/repos/zdm65477730/NX-Activity-Log/releases/latest"
+#define GITHUB_API_URL "https://api.github.com/repos/luc4sv/NX-Activity-Log/releases/latest"
 // File storing timestamp of last check
 #define TIMESTAMP_FILE "/config/NX-Activity-Log/update.time"
 // Path of downloaded .nro

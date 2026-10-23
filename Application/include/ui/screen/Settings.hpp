@@ -44,6 +44,7 @@ namespace Screen {
 
             Aether::ListOption * option24H;
             Aether::ListOption * optionGraph;
+            Aether::ListOption * optionUnassigned;
             Aether::ListButton * optionAdjust;
             Aether::ListButton * optionHide;
             Aether::ListOption * optionPage;

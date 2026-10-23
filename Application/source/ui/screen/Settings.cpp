@@ -6,6 +6,12 @@
 #include "utils/Utils.hpp"
 
 namespace Screen {
+    // Returns the translated string, or the fallback if the translation files don't have the key yet
+    static std::string langOr(const std::string & key, const std::string & fallback) {
+        std::string s = Utils::Lang::string(key);
+        return (s == key ? fallback : s);
+    }
+
     Settings::Settings(Main::Application * a, ScreenCreate sc) {
         this->app = a;
         this->createReason = sc;
@@ -564,6 +570,23 @@ namespace Screen {
         this->optionHide->setTextColour(this->app->theme()->text());
         this->list->addElement(this->optionHide);
         lc = new Aether::ListComment("settings.other.hideHint"_lang);
+        lc->setTextColour(this->app->theme()->mutedText());
+        this->list->addElement(lc);
+
+        // SHOW UNASSIGNED SESSIONS (forwarders, emulators, ports... launched without selecting a user)
+        this->optionUnassigned = new Aether::ListOption(langOr("settings.other.unassigned", "Show titles without user"), (this->app->config()->gUnassigned() ? "common.yes"_lang : "common.no"_lang), [this](){
+            bool value = !this->app->config()->gUnassigned();
+            this->app->config()->setGUnassigned(value);
+            this->app->playdata()->setIncludeUnassigned(value);
+            this->optionUnassigned->setValue((value ? "common.yes"_lang : "common.no"_lang));
+            this->optionUnassigned->setValueColour((value ? this->app->theme()->accent() : this->app->theme()->mutedText()));
+            this->setupGenericMessageOverlay(langOr("settings.other.unassignedRestart", "Restart NX Activity Log to fully apply this change."));
+        });
+        this->optionUnassigned->setHintColour(this->app->theme()->text());
+        this->optionUnassigned->setValueColour((this->app->config()->gUnassigned() ? this->app->theme()->accent() : this->app->theme()->mutedText()));
+        this->optionUnassigned->setLineColour(this->app->theme()->mutedLine());
+        this->list->addElement(this->optionUnassigned);
+        lc = new Aether::ListComment(langOr("settings.other.unassignedHint", "Includes titles that were launched without selecting a user (homebrew forwarders, emulators, ports). These sessions cannot be tied to an account, so they appear for every user."));
         lc->setTextColour(this->app->theme()->mutedText());
         this->list->addElement(lc);
 

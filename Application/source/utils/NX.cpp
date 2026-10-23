@@ -144,6 +144,29 @@ namespace Utils::NX {
         return users;
     }
 
+    std::vector<TitleID> getInstalledTitleIDs() {
+        std::vector<TitleID> installedIDs;
+        NsApplicationRecord *records = new NsApplicationRecord[MAX_TITLES];
+        s32 count = 0;
+        s32 out = 0;
+        while (true) {
+            memset(records, 0, MAX_TITLES * sizeof(NsApplicationRecord));
+            Result rc = nsListApplicationRecord(records, MAX_TITLES, count, &out);
+            // Break if at the end or no titles
+            if (R_FAILED(rc) || out == 0){
+                break;
+            }
+            for (s32 i = 0; i < out; i++) {
+                if ((records + i)->application_id != 0) {
+                    installedIDs.emplace_back((records + i)->application_id);
+                }
+            }
+            count += out;
+        }
+        delete[] records;
+        return installedIDs;
+    }
+
     std::vector<::NX::Title *> getTitleObjects(std::vector<::NX::User *> u) {
         Result rc = 0;
         // Get ALL played titles for ALL users
@@ -184,25 +207,7 @@ namespace Utils::NX {
         }
 
         // Get IDs of all installed titles
-        std::vector<TitleID> installedIDs;
-        NsApplicationRecord *records = new NsApplicationRecord[MAX_TITLES];
-        s32 count = 0;
-        s32 out = 0;
-        while (true) {
-            memset(records, 0, MAX_TITLES * sizeof(NsApplicationRecord));
-            rc = nsListApplicationRecord(records, MAX_TITLES, count, &out);
-            // Break if at the end or no titles
-            if (R_FAILED(rc) || out == 0){
-                break;
-            }
-            for (s32 i = 0; i < out; i++) {
-                if ((records + i)->application_id != 0) {
-                    installedIDs.emplace_back((records + i)->application_id);
-                }
-            }
-            count += out;
-        }
-        delete[] records;
+        std::vector<TitleID> installedIDs = getInstalledTitleIDs();
 
         // Create Title objects from IDs
         std::vector<::NX::Title *> titles;

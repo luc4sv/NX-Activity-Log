@@ -10,7 +10,7 @@
 #define MAX_PROCESS_ENTRIES 32768
 
 namespace NX {
-    std::vector<PD_Session> PlayData::getPDSessions(TitleID titleID, AccountUid userID, u64 start_ts, u64 end_ts) {
+    std::vector<PD_Session> PlayData::getPDSessions(TitleID titleID, AccountUid userID, u64 start_ts, u64 end_ts, bool allowUnassigned) {
         // Break each "session" apart and keep if matching titleID and userID
         std::vector<PD_Session> sessions;
         size_t a = 0;
@@ -24,6 +24,10 @@ namespace NX {
                     titleID_c = true;
                 }
                 bool userID_c = false;
+                // True if any account event is found within this session
+                bool hasAccount = false;
+                // Sessions with no account event are only accepted for installed applications
+                const bool unassignedOK = allowUnassigned && this->installedIDs.count(this->events[s]->titleID) > 0;
 
                 a++;
                 bool end = false;
@@ -43,6 +47,7 @@ namespace NX {
                         // Check userID whenever account event encountered
                         case Account_Active:
                         case Account_Inactive:
+                            hasAccount = true;
                             if (this->events[a]->userID == userID) {
                                 userID_c = true;
                             }
@@ -50,7 +55,7 @@ namespace NX {
 
                         // Exit indicates end of session
                         case Applet_Exit:
-                            if (time_c && titleID_c && userID_c) {
+                            if (time_c && titleID_c && (userID_c || (unassignedOK && !hasAccount))) {
                                 struct PD_Session st;
                                 st.index = s;
                                 st.num = a - s + 1;
@@ -61,7 +66,7 @@ namespace NX {
 
                         // Encountering another launch also indicates end of session (due to crash)
                         case Applet_Launch:
-                            if (time_c && titleID_c && userID_c) {
+                            if (time_c && titleID_c && (userID_c || (unassignedOK && !hasAccount))) {
                                 struct PD_Session st;
                                 st.index = s;
                                 st.num = a - s;
@@ -356,7 +361,7 @@ namespace NX {
         return ret;
     }
 
-    PlayData::PlayData() : currentProgress(0), maxProgress(1), progressCallback(nullptr) {
+    PlayData::PlayData() : includeUnassigned_(false), currentProgress(0), maxProgress(1), progressCallback(nullptr) {
         // Read in all data simultaneously
         this->pdmThread = std::async(std::launch::async, [this]() -> PlayEventsAndSummaries {
             return this->readPlayDataFromPdm();
@@ -404,6 +409,31 @@ namespace NX {
         impData.first.clear();
     }
 
+    void PlayData::setIncludeUnassigned(bool b) {
+        this->includeUnassigned_ = b;
+    }
+
+    bool PlayData::includeUnassigned() const {
+        return this->includeUnassigned_;
+    }
+
+    void PlayData::setInstalledTitleIDs(const std::vector<TitleID> & ids) {
+        this->installedIDs = std::set<TitleID>(ids.begin(), ids.end());
+    }
+
+    std::vector<TitleID> PlayData::getUnassignedTitleIDs() {
+        // Look at every session of every title: the "user" is an all-zero uid which never
+        // matches a real account, so only sessions without any account event are returned
+        AccountUid none = {};
+        std::vector<PD_Session> sessions = this->getPDSessions(0, none, 0, std::numeric_limits<u64>::max(), true);
+
+        this->unassignedTitles.clear();
+        for (const PD_Session & session : sessions) {
+            this->unassignedTitles.insert(this->events[session.index]->titleID);
+        }
+        return std::vector<TitleID>(this->unassignedTitles.begin(), this->unassignedTitles.end());
+    }
+
     void PlayData::setProgressCallback(ProgressCallback callback) {
         this->progressCallback = callback;
     }
@@ -445,7 +475,7 @@ namespace NX {
         std::vector<PlayEvent> events;
 
         // Get a vector of PD_Sessions -> should only be one if the provided timestamps are correct
-        std::vector<PD_Session> sessions = this->getPDSessions(titleID, userID, start, end);
+        std::vector<PD_Session> sessions = this->getPDSessions(titleID, userID, start, end, this->includeUnassigned_);
         for (size_t i = 0; i < sessions.size(); i++) {
             for (size_t j = sessions[i].index; j < sessions[i].index + sessions[i].num; j++) {
                 // Ignore repeated OutFocus events
@@ -462,7 +492,7 @@ namespace NX {
     std::vector<PlaySession> PlayData::getPlaySessionsForUser(TitleID titleID, AccountUid userID) {
         // Get list of pd_sessions
         struct tm end = Utils::Time::getTmForCurrentTime();
-        std::vector<PD_Session> pd_sessions = this->getPDSessions(titleID, userID, 0, std::mktime(&end));
+        std::vector<PD_Session> pd_sessions = this->getPDSessions(titleID, userID, 0, std::mktime(&end), this->includeUnassigned_);
 
         // Create PlaySessions for each PD_Session
         std::vector<PlaySession> sessions;
@@ -517,11 +547,11 @@ namespace NX {
     }
 
     RecentPlayStatistics * PlayData::getRecentStatisticsForUser(u64 start_ts, u64 end_ts, AccountUid userID) {
-        return this->countPlaytime(this->getPDSessions(0, userID, start_ts, end_ts), start_ts, end_ts);
+        return this->countPlaytime(this->getPDSessions(0, userID, start_ts, end_ts, this->includeUnassigned_), start_ts, end_ts);
     }
 
     RecentPlayStatistics * PlayData::getRecentStatisticsForTitleAndUser(TitleID titleID, u64 start_ts, u64 end_ts, AccountUid userID) {
-        RecentPlayStatistics * s = this->countPlaytime(this->getPDSessions(titleID, userID, start_ts, end_ts), start_ts, end_ts);
+        RecentPlayStatistics * s = this->countPlaytime(this->getPDSessions(titleID, userID, start_ts, end_ts, this->includeUnassigned_), start_ts, end_ts);
         s->titleID = titleID;
         return s;
     }
@@ -543,6 +573,40 @@ namespace NX {
 
         stats->playtime = tmp.playtime / 1000 / 1000 / 1000; //the unit of playtime in PdmPlayStatistics is ns
         stats->launches = tmp.total_launches;
+
+        // The system only tracks statistics per account, so sessions without an account are invisible
+        // to the query above. Fill in what is missing using the sessions found in the play events.
+        if (this->includeUnassigned_ && this->unassignedTitles.count(titleID) > 0) {
+            std::vector<PD_Session> sessions = this->getPDSessions(titleID, userID, 0, std::numeric_limits<u64>::max(), true);
+            u64 first = 0;
+            u64 last = 0;
+            for (const PD_Session & session : sessions) {
+                for (size_t j = session.index; j < session.index + session.num; j++) {
+                    u64 ts = this->events[j]->clockTimestamp;
+                    if (this->events[j]->eventType == Applet_Launch && (first == 0 || ts < first)) {
+                        first = ts;
+                    }
+                    if ((this->events[j]->eventType == Applet_Exit || this->events[j]->eventType == Applet_OutFocus) && ts > last) {
+                        last = ts;
+                    }
+                }
+            }
+
+            if (first != 0 && (stats->firstPlayed == 0 || first < stats->firstPlayed)) {
+                stats->firstPlayed = first;
+            }
+            if (last > stats->lastPlayed) {
+                stats->lastPlayed = last;
+            }
+            if (stats->launches == 0) {
+                stats->launches = sessions.size();
+            }
+            if (stats->playtime == 0 && !sessions.empty()) {
+                RecentPlayStatistics * rps = this->countPlaytime(sessions, 0, std::numeric_limits<u64>::max());
+                stats->playtime = rps->playtime;
+                delete rps;
+            }
+        }
         return stats;
     }
 

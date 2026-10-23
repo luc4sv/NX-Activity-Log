@@ -43,13 +43,13 @@ FORWARDER	:=	$(ROMFS)/exefs.nsp
 #---------------------------------------------------------------------------------
 VER_MAJOR	:= 1
 VER_MINOR	:= 6
-VER_MICRO	:= 0
+VER_MICRO	:= 5
 
 #---------------------------------------------------------------------------------
 # Options for .nacp information
 #---------------------------------------------------------------------------------
 APP_TITLE   := 	NX Activity Log
-APP_AUTHOR	:= 	zdm65477730
+APP_AUTHOR	:= 	luc4sv
 APP_VERSION	:=	$(VER_MAJOR).$(VER_MINOR).$(VER_MICRO)
 ICON 		:= 	icon.jpg
 

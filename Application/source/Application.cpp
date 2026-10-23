@@ -1,4 +1,5 @@
 #include "Application.hpp"
+#include <algorithm>
 #include "Application.ExportJob.hpp"
 #include "Application.ImportJob.hpp"
 #include "utils/Curl.hpp"
@@ -124,8 +125,26 @@ namespace Main {
 
         app->playdata_->initPlayEvents();
 
+        // Prepare handling of sessions launched without an account (forwarders, emulators, ports...)
+        app->playdata_->setInstalledTitleIDs(Utils::NX::getInstalledTitleIDs());
+        app->playdata_->setIncludeUnassigned(app->config_->gUnassigned());
+        std::vector<TitleID> unassigned = app->playdata_->getUnassignedTitleIDs();
+
         // Populate titles vector
         app->titles = Utils::NX::getTitleObjects(app->users);
+
+        // Titles only ever launched without an account aren't in any user's account events
+        // so add them here (changing the setting needs a restart for this part to apply)
+        if (app->config_->gUnassigned()) {
+            for (TitleID id : unassigned) {
+                bool present = std::find_if(app->titles.begin(), app->titles.end(), [id](NX::Title * t) {
+                    return (t->titleID() == id);
+                }) != app->titles.end();
+                if (!present) {
+                    app->titles.emplace_back(new NX::Title(id, true));
+                }
+            }
+        }
         app->playdata_->setCurrentProgress(app->playdata_->getCurrentProgress() + 1);
         progress = (float)app->playdata_->getCurrentProgress() / max;
         app->scloadingScreen->setProgress(progress);

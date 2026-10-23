@@ -2,7 +2,9 @@
 
 **NX Activity Log** is a homebrew application for the Nintendo Switch which displays more precise information about your play activity.
 
-[Download](https://github.com/zdm65477730/NX-Activity-Log/releases)
+[Download](https://github.com/luc4sv/NX-Activity-Log/releases)
+
+> **Fork notice:** this is a fork of [zdm65477730/NX-Activity-Log](https://github.com/zdm65477730/NX-Activity-Log), itself a fork of [tallbl0nde/NX-Activity-Log](https://github.com/tallbl0nde/NX-Activity-Log). Version 1.6.5 adds support for titles launched without selecting a user (homebrew forwarders, emulators, ports). See the [changelog](CHANGELOG.md).
 
 Curious about what's next? See my to-do list on [Trello](https://trello.com/b/HaJ1THGq/nx-activity-log)
 
@@ -21,6 +23,7 @@ Curious about what's next? See my to-do list on [Trello](https://trello.com/b/Ha
 This application currently has the following features:
 
 * Viewing Play Activity (per user)
+  * Optionally includes titles launched without selecting a user (forwarders, emulators, ports)
   * All Time Activity
     * Total Playtime in minutes
     * Number of times a game has been launched
@@ -74,6 +77,7 @@ _Note: If the data shown under All Activity is incorrect there is nothing I can 
 ## Known Issues
 
 * The main issue at the moment is that a few users' playtime is incorrect. This is due to the Switch being factory reset at some point and/or some games not requiring a user to be selected to play it. _I am looking into how to fix the former!_
+  * _Fork note (1.6.5): titles launched without a user are now shown through the "Show titles without user" setting. Since they belong to no account, they appear for every user. Homebrew opened via hbmenu in title takeover mode is still logged by the Switch as the hosted game/applet and can't be separated._
 * Having a lot of games logged can cause too much memory usage when launched via User Page/Album, leading to out of memory crashes and/or missing images/text.
   * I think I know a way to fix this but if it impacts you you'll have to launch this app in title mode for now.
 * Having a lot of games logged causes a long pause/freeze when loading the 'All Activity' screen
@@ -87,6 +91,8 @@ If you'd like to translate the app or fix an issue with a translation, please ma
 
 I'd like to thank:
 
+* tallbl0nde, the original author of NX Activity Log
+* zdm65477730, for maintaining the fork this one is based on
 * AtlasNX for [SimpleIniParser](https://github.com/AtlasNX/SimpleIniParser)
   * Used to read/write the config file
 * nlohmann for his [JSON library](https://github.com/nlohmann/json)

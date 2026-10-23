@@ -26,6 +26,7 @@ namespace Main {
 
             bool gGraph_;
             bool gIs24H_;
+            bool gUnassigned_;
             Language gLang_;
             ThemeType gTheme_;
             ScreenID lScreen_;
@@ -49,6 +50,7 @@ namespace Main {
             std::vector<uint64_t> hiddenTitles();
             bool gGraph();
             bool gIs24H();
+            bool gUnassigned();
             Language gLang();
             ThemeType gTheme();
             ScreenID lScreen();
@@ -60,6 +62,7 @@ namespace Main {
             bool setHiddenTitles(const std::vector<uint64_t> &);
             void setGGraph(bool);
             void setGIs24H(bool);
+            void setGUnassigned(bool);
             void setGLang(Language);
             void setGTheme(ThemeType);
             void setLScreen(ScreenID);

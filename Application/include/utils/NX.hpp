@@ -23,6 +23,9 @@ namespace Utils::NX {
     // Returns vector containing users on the console
     std::vector<::NX::User *> getUserObjects();
 
+    // Returns IDs of all installed applications
+    std::vector<TitleID> getInstalledTitleIDs();
+
     // Returns vector containing ALL played titles
     std::vector<::NX::Title *> getTitleObjects(std::vector<::NX::User *>);
 

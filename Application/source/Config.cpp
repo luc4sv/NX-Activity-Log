@@ -68,6 +68,14 @@ namespace Main {
             this->gIs24H_ = false;
         }
 
+        // Show sessions launched without selecting a user (forwarders, emulators, ports...)
+        option = sec->findOrCreateFirstOption("showUnassigned", "true");
+        if (option->value == "false") {
+            this->gUnassigned_ = false;
+        } else {
+            this->gUnassigned_ = true;
+        }
+
         option = sec->findOrCreateFirstOption("theme", "Auto");
         if (option->value == "Custom") {
             this->gTheme_ = Custom;
@@ -213,6 +221,13 @@ namespace Main {
             option->value = "false";
         }
 
+        option = ini->findSection("general")->findFirstOption("showUnassigned");
+        if (this->gUnassigned_ == true) {
+            option->value = "true";
+        } else {
+            option->value = "false";
+        }
+
         option = ini->findSection("general")->findFirstOption("theme");
         if (this->gTheme_ == Light) {
             option->value = "Light";
@@ -283,6 +298,10 @@ namespace Main {
         return this->gIs24H_;
     }
 
+    bool Config::gUnassigned() {
+        return this->gUnassigned_;
+    }
+
     Language Config::gLang() {
         return this->gLang_;
     }
@@ -338,6 +357,11 @@ namespace Main {
 
     void Config::setGIs24H(bool b) {
         this->gIs24H_ = b;
+        this->writeConfig();
+    }
+
+    void Config::setGUnassigned(bool b) {
+        this->gUnassigned_ = b;
         this->writeConfig();
     }
 
