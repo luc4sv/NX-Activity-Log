@@ -590,6 +590,22 @@ namespace Screen {
         lc->setTextColour(this->app->theme()->mutedText());
         this->list->addElement(lc);
 
+        // SHOW DELETED PROFILES
+        this->optionDeleted = new Aether::ListOption(langOr("settings.other.deleted", "Show deleted profiles"), (this->app->config()->gDeletedProfiles() ? "common.yes"_lang : "common.no"_lang), [this](){
+            bool value = !this->app->config()->gDeletedProfiles();
+            this->app->config()->setGDeletedProfiles(value);
+            this->optionDeleted->setValue((value ? "common.yes"_lang : "common.no"_lang));
+            this->optionDeleted->setValueColour((value ? this->app->theme()->accent() : this->app->theme()->mutedText()));
+            this->setupGenericMessageOverlay(langOr("settings.other.deletedRestart", "Restart NX Activity Log to apply this change."));
+        });
+        this->optionDeleted->setHintColour(this->app->theme()->text());
+        this->optionDeleted->setValueColour((this->app->config()->gDeletedProfiles() ? this->app->theme()->accent() : this->app->theme()->mutedText()));
+        this->optionDeleted->setLineColour(this->app->theme()->mutedLine());
+        this->list->addElement(this->optionDeleted);
+        lc = new Aether::ListComment(langOr("settings.other.deletedHint", "Lists profiles that were deleted from the console, with the games they played, on the user selection screen."));
+        lc->setTextColour(this->app->theme()->mutedText());
+        this->list->addElement(lc);
+
         // REPLACE USER PAGE
         Utils::Forwarder::initVars();
         this->optionPage = new Aether::ListOption("settings.other.replace"_lang, (Utils::Forwarder::installed() ? "common.enabled"_lang : "common.disabled"_lang), [this](){

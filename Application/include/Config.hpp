@@ -27,6 +27,7 @@ namespace Main {
             bool gGraph_;
             bool gIs24H_;
             bool gUnassigned_;
+            bool gDeletedProfiles_;
             Language gLang_;
             ThemeType gTheme_;
             ScreenID lScreen_;
@@ -51,6 +52,7 @@ namespace Main {
             bool gGraph();
             bool gIs24H();
             bool gUnassigned();
+            bool gDeletedProfiles();
             Language gLang();
             ThemeType gTheme();
             ScreenID lScreen();
@@ -63,6 +65,7 @@ namespace Main {
             void setGGraph(bool);
             void setGIs24H(bool);
             void setGUnassigned(bool);
+            void setGDeletedProfiles(bool);
             void setGLang(Language);
             void setGTheme(ThemeType);
             void setLScreen(ScreenID);

@@ -4,7 +4,7 @@
 
 [Download](https://github.com/luc4sv/NX-Activity-Log/releases)
 
-> **Fork notice:** this is a fork of [zdm65477730/NX-Activity-Log](https://github.com/zdm65477730/NX-Activity-Log), itself a fork of [tallbl0nde/NX-Activity-Log](https://github.com/tallbl0nde/NX-Activity-Log). Version 1.6.5 adds support for titles launched without selecting a user (homebrew forwarders, emulators, ports). See the [changelog](CHANGELOG.md).
+> **Fork notice:** this is a fork of [zdm65477730/NX-Activity-Log](https://github.com/zdm65477730/NX-Activity-Log), itself a fork of [tallbl0nde/NX-Activity-Log](https://github.com/tallbl0nde/NX-Activity-Log). Version 1.6.6 adds support for titles launched without selecting a user (homebrew forwarders, emulators, ports), keeps uninstalled titles, and can list deleted profiles. See the [changelog](CHANGELOG.md).
 
 Curious about what's next? See my to-do list on [Trello](https://trello.com/b/HaJ1THGq/nx-activity-log)
 

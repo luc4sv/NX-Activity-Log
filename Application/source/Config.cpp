@@ -76,6 +76,14 @@ namespace Main {
             this->gUnassigned_ = true;
         }
 
+        // Show profiles that were deleted from the console
+        option = sec->findOrCreateFirstOption("showDeletedProfiles", "true");
+        if (option->value == "false") {
+            this->gDeletedProfiles_ = false;
+        } else {
+            this->gDeletedProfiles_ = true;
+        }
+
         option = sec->findOrCreateFirstOption("theme", "Auto");
         if (option->value == "Custom") {
             this->gTheme_ = Custom;
@@ -228,6 +236,13 @@ namespace Main {
             option->value = "false";
         }
 
+        option = ini->findSection("general")->findFirstOption("showDeletedProfiles");
+        if (this->gDeletedProfiles_ == true) {
+            option->value = "true";
+        } else {
+            option->value = "false";
+        }
+
         option = ini->findSection("general")->findFirstOption("theme");
         if (this->gTheme_ == Light) {
             option->value = "Light";
@@ -302,6 +317,10 @@ namespace Main {
         return this->gUnassigned_;
     }
 
+    bool Config::gDeletedProfiles() {
+        return this->gDeletedProfiles_;
+    }
+
     Language Config::gLang() {
         return this->gLang_;
     }
@@ -362,6 +381,11 @@ namespace Main {
 
     void Config::setGUnassigned(bool b) {
         this->gUnassigned_ = b;
+        this->writeConfig();
+    }
+
+    void Config::setGDeletedProfiles(bool b) {
+        this->gDeletedProfiles_ = b;
         this->writeConfig();
     }
 

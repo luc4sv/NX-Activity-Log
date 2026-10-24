@@ -16,6 +16,14 @@ namespace NX {
             u8 * ptr;
             u32 size;
 
+            // Name and icon are saved to the SD card while a title is installed so they
+            // can still be shown after it has been uninstalled
+            void saveCache(const std::string &, const u8 *, u32);
+            bool loadCache();
+
+            // Uses the "no icon" image
+            void loadNoIcon();
+
         public:
             // The constructor derives all relevant info from given titleID
             Title(TitleID, bool);

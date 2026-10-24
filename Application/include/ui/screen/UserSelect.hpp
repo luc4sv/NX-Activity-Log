@@ -25,6 +25,9 @@ namespace Screen {
             // Constructor takes window element and vector of User objects and sets up elements
             UserSelect(Main::Application *, std::vector<NX::User *>);
 
+            // Replaces the users shown (only call while the screen isn't loaded)
+            void setUsers(std::vector<NX::User *>);
+
             // User images + names are handled + elements created on load
             void onLoad();
             // Undoes everything done on onLoad to free memory

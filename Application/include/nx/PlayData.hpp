@@ -7,6 +7,7 @@
 #include <future>
 #include <functional>
 #include <atomic>
+#include <map>
 #include <set>
 #include <limits>
 
@@ -114,6 +115,20 @@ namespace NX {
             // so that system applets/hbloader/etc. are not mistaken for games
             std::set<TitleID> installedIDs;
 
+            // Whether a title may be shown for sessions without an account: either it is installed,
+            // or its ID is in the range used by user applications (so titles that have since been
+            // uninstalled are kept, while system applets/hbloader, which sit below that range, are not)
+            bool isUnassignedEligible(TitleID) const;
+
+            // Accounts that appear in the events but no longer exist on the console (as 16 bytes: both words)
+            std::set<std::pair<u64, u64>> deletedUsers;
+
+            // IDs of titles that have at least one session with an account. Such titles are real games, so
+            // any session of theirs without an account (e.g. leaving the user selection) isn't "unassigned"
+            std::set<TitleID> accountTitles;
+
+            bool isDeletedUser(AccountUid) const;
+
             // IDs of installed applications that have at least one session without an account
             std::set<TitleID> unassignedTitles;
 
@@ -154,8 +169,20 @@ namespace NX {
             void setIncludeUnassigned(bool);
             bool includeUnassigned() const;
 
+            // Returns the accounts found in the events which are not in the given list (deleted profiles).
+            // These are remembered: sessions without an account are never attributed to them
+            std::vector<AccountUid> findDeletedUsers(const std::vector<AccountUid> &);
+
+            // Returns the IDs of all titles with sessions belonging to the given account
+            std::vector<TitleID> getTitleIDsForUser(AccountUid);
+
             // Sets the IDs of installed applications (call before getUnassignedTitleIDs())
             void setInstalledTitleIDs(const std::vector<TitleID> &);
+
+            // Writes a plain text report of how sessions are being attributed (which accounts appear in the
+            // events, whether they still exist, and which titles have sessions without any account)
+            // to the given path. Used to investigate wrong playtime; the names map is only for readability
+            void writeDiagnostics(const std::vector<AccountUid> &, const std::map<TitleID, std::string> &, const std::string &);
 
             // Scans the events and returns the IDs of installed applications that have sessions
             // without any account. Also remembers them for use in getStatisticsForUser()

@@ -1,5 +1,7 @@
 #include "Application.hpp"
 #include <algorithm>
+#include <filesystem>
+#include <map>
 #include "Application.ExportJob.hpp"
 #include "Application.ImportJob.hpp"
 #include "utils/Curl.hpp"
@@ -126,7 +128,8 @@ namespace Main {
         app->playdata_->initPlayEvents();
 
         // Prepare handling of sessions launched without an account (forwarders, emulators, ports...)
-        app->playdata_->setInstalledTitleIDs(Utils::NX::getInstalledTitleIDs());
+        std::vector<TitleID> installedIDs = Utils::NX::getInstalledTitleIDs();
+        app->playdata_->setInstalledTitleIDs(installedIDs);
         app->playdata_->setIncludeUnassigned(app->config_->gUnassigned());
         std::vector<TitleID> unassigned = app->playdata_->getUnassignedTitleIDs();
 
@@ -141,13 +144,64 @@ namespace Main {
                     return (t->titleID() == id);
                 }) != app->titles.end();
                 if (!present) {
-                    app->titles.emplace_back(new NX::Title(id, true));
+                    bool installed = std::find(installedIDs.begin(), installedIDs.end(), id) != installedIDs.end();
+                    app->titles.emplace_back(new NX::Title(id, installed));
                 }
             }
+        }
+        // Profiles that were deleted from the console still have their play events, so list them
+        // after the existing ones. Sessions without an account are never attributed to them.
+        if (!app->isUserPage_ && app->config_->gDeletedProfiles()) {
+            std::vector<AccountUid> currentIDs;
+            for (NX::User * user : app->users) {
+                currentIDs.push_back(user->ID());
+            }
+
+            std::string label = Utils::Lang::string("userSelect.deletedUser");
+            if (label == "userSelect.deletedUser") {
+                label = "Deleted profile";
+            }
+            size_t n = 1;
+            for (AccountUid uid : app->playdata_->findDeletedUsers(currentIDs)) {
+                std::vector<TitleID> ids = app->playdata_->getTitleIDsForUser(uid);
+                // Nothing to show for this account
+                if (ids.empty()) {
+                    continue;
+                }
+
+                // Titles only this account played aren't in the list yet
+                for (TitleID id : ids) {
+                    bool present = std::find_if(app->titles.begin(), app->titles.end(), [id](NX::Title * t) {
+                        return (t->titleID() == id);
+                    }) != app->titles.end();
+                    if (!present) {
+                        bool installed = std::find(installedIDs.begin(), installedIDs.end(), id) != installedIDs.end();
+                        app->titles.emplace_back(new NX::Title(id, installed));
+                    }
+                }
+                app->users.emplace_back(new NX::User(uid, label + " " + std::to_string(n)));
+                n++;
+            }
+
+            // The user select screen was created with a copy of the users before these existed
+            app->scUserSelect->setUsers(app->users);
         }
         app->playdata_->setCurrentProgress(app->playdata_->getCurrentProgress() + 1);
         progress = (float)app->playdata_->getCurrentProgress() / max;
         app->scloadingScreen->setProgress(progress);
+
+        // Optional report to investigate wrong playtime: create /config/NX-Activity-Log/debug.flag to enable it
+        if (std::filesystem::exists("/config/NX-Activity-Log/debug.flag")) {
+            std::vector<AccountUid> userIDs;
+            for (NX::User * user : app->users) {
+                userIDs.push_back(user->ID());
+            }
+            std::map<TitleID, std::string> names;
+            for (NX::Title * title : app->titles) {
+                names[title->titleID()] = title->name();
+            }
+            app->playdata_->writeDiagnostics(userIDs, names, "/config/NX-Activity-Log/debug.txt");
+        }
 
         // Get missing titles from PlayData
         std::vector<NX::Title *> missing = app->playdata_->getMissingTitles(app->titles);

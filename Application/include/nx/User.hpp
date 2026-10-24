@@ -20,6 +20,8 @@ namespace NX {
         public:
             // Constructor takes ID and derives username and icon texture
             User(AccountUid);
+            // Constructor for an account that no longer exists: uses the given name and a placeholder icon
+            User(AccountUid, const std::string &);
 
             // Returns private members
             AccountUid ID();

@@ -1,4 +1,6 @@
 #include <algorithm>
+#include <cstdio>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
 #include "nlohmann/json.hpp"
@@ -26,8 +28,8 @@ namespace NX {
                 bool userID_c = false;
                 // True if any account event is found within this session
                 bool hasAccount = false;
-                // Sessions with no account event are only accepted for installed applications
-                const bool unassignedOK = allowUnassigned && this->installedIDs.count(this->events[s]->titleID) > 0;
+                // Sessions with no account event are only accepted for applications (not system applets)
+                const bool unassignedOK = allowUnassigned && !this->isDeletedUser(userID) && this->accountTitles.count(this->events[s]->titleID) == 0 && this->isUnassignedEligible(this->events[s]->titleID);
 
                 a++;
                 bool end = false;
@@ -409,6 +411,150 @@ namespace NX {
         impData.first.clear();
     }
 
+    bool PlayData::isDeletedUser(AccountUid uid) const {
+        return this->deletedUsers.count(std::make_pair(uid.uid[0], uid.uid[1])) > 0;
+    }
+
+    std::vector<AccountUid> PlayData::findDeletedUsers(const std::vector<AccountUid> & current) {
+        std::vector<AccountUid> found;
+        this->deletedUsers.clear();
+        for (PlayEvent * e : this->events) {
+            if (e->type != PlayEvent_Account || e->eventType != Account_Active) {
+                continue;
+            }
+            // Ignore the empty account
+            if (e->userID.uid[0] == 0 && e->userID.uid[1] == 0) {
+                continue;
+            }
+
+            auto key = std::make_pair(e->userID.uid[0], e->userID.uid[1]);
+            bool exists = std::find_if(current.begin(), current.end(), [&key](AccountUid u) {
+                return (u.uid[0] == key.first && u.uid[1] == key.second);
+            }) != current.end();
+            if (!exists && this->deletedUsers.insert(key).second) {
+                found.push_back(e->userID);
+            }
+        }
+        return found;
+    }
+
+    std::vector<TitleID> PlayData::getTitleIDsForUser(AccountUid userID) {
+        std::set<TitleID> ids;
+        for (const PD_Session & s : this->getPDSessions(0, userID, 0, std::numeric_limits<u64>::max(), false)) {
+            ids.insert(this->events[s.index]->titleID);
+        }
+        return std::vector<TitleID>(ids.begin(), ids.end());
+    }
+
+    bool PlayData::isUnassignedEligible(TitleID id) const {
+        // First ID used by user applications (Super Mario Odyssey); everything below belongs to the system
+        constexpr TitleID firstApplicationID = 0x0100000000010000ULL;
+        return (id >= firstApplicationID || this->installedIDs.count(id) > 0);
+    }
+
+    void PlayData::writeDiagnostics(const std::vector<AccountUid> & allUsers, const std::map<TitleID, std::string> & names, const std::string & path) {
+        // Deleted profiles are listed in the app too but are not real users of the console
+        std::vector<AccountUid> users;
+        for (AccountUid u : allUsers) {
+            if (!this->isDeletedUser(u)) {
+                users.push_back(u);
+            }
+        }
+
+        auto uidStr = [](AccountUid uid) {
+            char buf[40];
+            snprintf(buf, sizeof(buf), "%016llX%016llX", static_cast<unsigned long long>(uid.uid[0]), static_cast<unsigned long long>(uid.uid[1]));
+            return std::string(buf);
+        };
+        auto dateStr = [](u64 ts) {
+            if (ts == 0) {
+                return std::string("-");
+            }
+            std::time_t t = static_cast<std::time_t>(ts);
+            char buf[32];
+            std::strftime(buf, sizeof(buf), "%Y-%m-%d", std::gmtime(&t));
+            return std::string(buf);
+        };
+        auto nameOf = [&names](TitleID id) {
+            auto it = names.find(id);
+            return (it != names.end() ? it->second : std::string("?"));
+        };
+        auto isCurrent = [&users](AccountUid uid) {
+            for (AccountUid u : users) {
+                if (u.uid[0] == uid.uid[0] && u.uid[1] == uid.uid[1]) {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        std::ofstream out(path, std::ios::trunc);
+        if (!out.good()) {
+            return;
+        }
+
+        const u64 MAX = std::numeric_limits<u64>::max();
+        out << "NX Activity Log diagnostics\n";
+        out << "Events: " << this->events.size() << "\n";
+        out << "Include unassigned: " << (this->includeUnassigned_ ? "yes" : "no") << "\n\n";
+
+        // Accounts found in the events
+        std::map<std::string, std::pair<AccountUid, size_t>> accounts;
+        for (PlayEvent * e : this->events) {
+            if (e->type == PlayEvent_Account && e->eventType == Account_Active) {
+                std::string key = uidStr(e->userID);
+                auto it = accounts.find(key);
+                if (it == accounts.end()) {
+                    accounts[key] = std::make_pair(e->userID, 1);
+                } else {
+                    it->second.second++;
+                }
+            }
+        }
+        out << "== Accounts found in account events ==\n";
+        for (const auto & kv : accounts) {
+            AccountUid uid = kv.second.first;
+            std::vector<PD_Session> sessions = this->getPDSessions(0, uid, 0, MAX, false);
+            RecentPlayStatistics * rps = this->countPlaytime(sessions, 0, MAX);
+            out << kv.first << "  " << (isCurrent(uid) ? "EXISTS" : "NOT ON CONSOLE (deleted?)")
+                << "  login events: " << kv.second.second << "  sessions: " << sessions.size() << "  playtime: " << (rps->playtime / 3600) << "h " << ((rps->playtime / 60) % 60) << "m\n";
+            delete rps;
+        }
+        out << "\nCurrent users on console: " << users.size() << "\n";
+        for (AccountUid u : users) {
+            out << uidStr(u) << (accounts.count(uidStr(u)) ? "" : "  (no login events)") << "\n";
+        }
+
+        // Sessions without any account event, per title
+        struct Info { size_t sessions = 0; u64 first = 0; u64 last = 0; };
+        std::map<TitleID, Info> perTitle;
+        AccountUid none = {};
+        std::vector<PD_Session> unassigned = this->getPDSessions(0, none, 0, MAX, true);
+        for (const PD_Session & s : unassigned) {
+            Info & info = perTitle[this->events[s.index]->titleID];
+            info.sessions++;
+            for (size_t j = s.index; j < s.index + s.num; j++) {
+                u64 ts = this->events[j]->clockTimestamp;
+                if (this->events[j]->eventType == Applet_Launch && (info.first == 0 || ts < info.first)) {
+                    info.first = ts;
+                }
+                if (ts > info.last) {
+                    info.last = ts;
+                }
+            }
+        }
+        out << "\n== Titles with sessions that contain no account event ==\n";
+        for (const auto & kv : perTitle) {
+            std::vector<PD_Session> sessions = this->getPDSessions(kv.first, none, 0, MAX, true);
+            RecentPlayStatistics * rps = this->countPlaytime(sessions, 0, MAX);
+            char id[24];
+            snprintf(id, sizeof(id), "%016llX", static_cast<unsigned long long>(kv.first));
+            out << id << "  " << nameOf(kv.first) << "  sessions: " << kv.second.sessions << "  playtime: " << (rps->playtime / 3600) << "h " << ((rps->playtime / 60) % 60) << "m"
+                << "  first: " << dateStr(kv.second.first) << "  last: " << dateStr(kv.second.last) << "\n";
+            delete rps;
+        }
+    }
+
     void PlayData::setIncludeUnassigned(bool b) {
         this->includeUnassigned_ = b;
     }
@@ -422,6 +568,17 @@ namespace NX {
     }
 
     std::vector<TitleID> PlayData::getUnassignedTitleIDs() {
+        // Find the titles that are played with an account (by any account, including deleted ones)
+        this->accountTitles.clear();
+        std::set<std::pair<u64, u64>> seen;
+        for (PlayEvent * e : this->events) {
+            if (e->type == PlayEvent_Account && e->eventType == Account_Active && seen.insert(std::make_pair(e->userID.uid[0], e->userID.uid[1])).second) {
+                for (const PD_Session & s : this->getPDSessions(0, e->userID, 0, std::numeric_limits<u64>::max(), false)) {
+                    this->accountTitles.insert(this->events[s.index]->titleID);
+                }
+            }
+        }
+
         // Look at every session of every title: the "user" is an all-zero uid which never
         // matches a real account, so only sessions without any account event are returned
         AccountUid none = {};
@@ -557,9 +714,18 @@ namespace NX {
     }
 
     PlayStatistics * PlayData::getStatisticsForUser(TitleID titleID, AccountUid userID) {
-        PdmPlayStatistics tmp;
-        pdmqryQueryPlayStatisticsByApplicationIdAndUserAccountId(titleID, userID, false, &tmp);
-        PlayStatistics * stats = new PlayStatistics;
+        // For titles launched without an account, and for deleted accounts, the system has no meaningful per-account
+        // statistics (it can return unrelated values for them), so these are worked out from the play events only
+        const bool eventsOnly = (this->includeUnassigned_ && this->unassignedTitles.count(titleID) > 0) || this->isDeletedUser(userID);
+
+        // Zeroed as the query leaves it untouched on failure
+        PdmPlayStatistics tmp = {};
+        if (!eventsOnly) {
+            pdmqryQueryPlayStatisticsByApplicationIdAndUserAccountId(titleID, userID, false, &tmp);
+        }
+        // Value-initialised: the dates must be zero when neither pdm nor the summaries have any
+        PlayStatistics * stats = new PlayStatistics();
+        stats->titleID = titleID;
         if (tmp.first_timestamp_user != 0 && tmp.last_timestamp_user != 0) {
             stats->firstPlayed = tmp.first_timestamp_user;
             stats->lastPlayed = tmp.last_timestamp_user;
@@ -576,13 +742,19 @@ namespace NX {
 
         // The system only tracks statistics per account, so sessions without an account are invisible
         // to the query above. Fill in what is missing using the sessions found in the play events.
-        if (this->includeUnassigned_ && this->unassignedTitles.count(titleID) > 0) {
+        if (eventsOnly) {
             std::vector<PD_Session> sessions = this->getPDSessions(titleID, userID, 0, std::numeric_limits<u64>::max(), true);
             u64 first = 0;
             u64 last = 0;
+            // Ignore timestamps that can't be real (before 2000 or in the future)
+            const u64 minTs = 946684800;
+            const u64 maxTs = static_cast<u64>(std::time(nullptr)) + 86400;
             for (const PD_Session & session : sessions) {
                 for (size_t j = session.index; j < session.index + session.num; j++) {
                     u64 ts = this->events[j]->clockTimestamp;
+                    if (ts < minTs || ts > maxTs) {
+                        continue;
+                    }
                     if (this->events[j]->eventType == Applet_Launch && (first == 0 || ts < first)) {
                         first = ts;
                     }

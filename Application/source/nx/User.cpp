@@ -1,3 +1,4 @@
+#include <fstream>
 #include "nx/User.hpp"
 
 namespace NX {
@@ -33,6 +34,25 @@ namespace NX {
 
             // Close profile
             accountProfileClose(&profile);
+        }
+    }
+
+    User::User(AccountUid ID, const std::string & name) {
+        this->ID_ = ID;
+        this->username_ = name;
+        this->ptr = nullptr;
+        this->size = 0;
+
+        // Load placeholder image
+        std::ifstream file("romfs:/icon/no_icon.jpg", std::ios::binary);
+        file.unsetf(std::ios::skipws);
+        file.seekg(0, std::ios::end);
+        std::streamoff len = file.tellg();
+        if (len > 0) {
+            this->ptr = static_cast<u8 *>(malloc(len));
+            file.seekg(0, std::ios::beg);
+            file.read(reinterpret_cast<char *>(this->ptr), len);
+            this->size = static_cast<u32>(len);
         }
     }
 

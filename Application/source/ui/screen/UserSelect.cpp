@@ -35,6 +35,10 @@ namespace Screen {
         });
     }
 
+    void UserSelect::setUsers(std::vector<NX::User *> u) {
+        this->users = u;
+    }
+
     void UserSelect::onLoad() {
         // Create list
         this->list = new Aether::List(340, 88, 600, 558);
